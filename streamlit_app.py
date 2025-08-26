@@ -79,9 +79,9 @@ def page_ask_search():
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        run = st.button("Get Advice", type="primary", use_container_width=True)
+        run = st.button("Get Advice", key="ask_get_advice", type="primary", use_container_width=True)
     with col2:
-        clear = st.button("Clear", use_container_width=True)
+        clear = st.button("Clear", key="ask_clear", use_container_width=True)
 
     if clear:
         st.session_state.pop("last_answer", None)

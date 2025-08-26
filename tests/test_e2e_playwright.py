@@ -12,8 +12,8 @@ def test_create_element_and_note_and_bloom(page):
     app_url = os.getenv("APP_URL", "http://localhost:8501")
     page.goto(app_url)
 
-    # Navigate to Elements tab
-    page.get_by_role("tab", name="Elements").click()
+    # Navigate to Elements via top nav button
+    page.get_by_role("button", name="Elements").click()
     page.get_by_role("tab", name="Create").click()
 
     # Fill form - use more specific selectors
@@ -23,14 +23,13 @@ def test_create_element_and_note_and_bloom(page):
     type_input.click()
     # Target the specific dropdown option
     page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text("flower").click()
-    page.get_by_text("Generate a sample image if none uploaded").click()
     page.get_by_role("button", name="Create Element").click()
 
     # Manage tab: verify element appears
     page.get_by_role("tab", name="Manage").click()
     page.get_by_text("E2E Test Flower (flower)").first.wait_for()
 
-    # Dashboard
-    page.get_by_role("tab", name="Dashboard").click()
+    # Dashboard via top nav button
+    page.get_by_role("button", name="Dashboard").click()
     page.get_by_text("Total elements").first.wait_for()
 
