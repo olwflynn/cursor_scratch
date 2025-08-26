@@ -1,9 +1,10 @@
 import os
 import shutil
 import uuid
-from typing import List
+from typing import List, Optional
 
 from PIL import Image
+from PIL import ImageDraw, ImageFont
 
 
 MEDIA_DIR = os.path.join(os.path.dirname(__file__), "data", "media")
@@ -32,5 +33,37 @@ def delete_media(paths: List[str]) -> None:
         except Exception:
             # Best-effort cleanup
             pass
+
+
+def generate_sample_image(caption: Optional[str] = None, width: int = 800, height: int = 500) -> Image.Image:
+    """Generate a simple sample image with a green gradient and optional caption."""
+    # Background gradient
+    img = Image.new("RGB", (width, height))
+    draw = ImageDraw.Draw(img)
+    for y in range(height):
+        # gradient from dark to light green
+        g = int(80 + (y / max(1, height)) * 120)
+        draw.line([(0, y), (width, y)], fill=(60, g, 60))
+
+    # Optional caption text
+    text = caption or "Garden Element"
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+    tw, th = draw.textlength(text, font=font), 14
+    draw.rectangle([(10, height - th - 20), (10 + int(tw) + 20, height - 10)], fill=(255, 255, 255))
+    draw.text((20, height - th - 18), text, fill=(34, 139, 34), font=font)
+    return img
+
+
+def save_sample_image(caption: Optional[str] = None) -> str:
+    """Generate and persist a sample image, returning its path."""
+    ensure_media_dir()
+    img = generate_sample_image(caption=caption)
+    filename = f"{uuid.uuid4().hex}.png"
+    path = os.path.join(MEDIA_DIR, filename)
+    img.save(path, format="PNG")
+    return path
 
 
