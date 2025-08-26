@@ -117,9 +117,8 @@ def page_ask_search():
 
     st.divider()
     st.markdown("### Search")
-    st.markdown("#### Find previous advice for your garden")
     # semantic-only search
-    q2 = st.text_input("Search", placeholder="yellowing leaves cause and fix")
+    q2 = st.text_input("Find previous advice for your garden", placeholder="yellowing leaves cause and fix")
     if st.button("Search", key="semantic_search_btn"):
         try:
             scored = semantic_search(q2, top_k=25)
@@ -163,23 +162,27 @@ def _new_element_form() -> None:
             return
         image_path: Optional[str] = None
         try:
-            if up is not None:
-                imgs = _load_pil_images([up])
-                paths = save_uploaded_images(imgs)
-                image_path = paths[0] if paths else None
-            else:
-                # Always generate a sample image when none uploaded
-                image_path = save_sample_image(caption=name.strip())
+            with st.spinner("Creating element..."):
+                if up is not None:
+                    imgs = _load_pil_images([up])
+                    paths = save_uploaded_images(imgs)
+                    image_path = paths[0] if paths else None
+                else:
+                    # Always generate a sample image when none uploaded
+                    image_path = save_sample_image(caption=name.strip())
 
-            pid = create_element(
-                name=name.strip(),
-                type=element_type,
-                location=(location.strip() if 'location' in locals() and location else None),
-                planted_on=(str(planted_on) if 'planted_on' in locals() and planted_on else None),
-                variety=(variety.strip() if 'variety' in locals() and variety else None),
-                image_path=image_path,
-            )
+                pid = create_element(
+                    name=name.strip(),
+                    type=element_type,
+                    location=(location.strip() if 'location' in locals() and location else None),
+                    planted_on=(str(planted_on) if 'planted_on' in locals() and planted_on else None),
+                    variety=(variety.strip() if 'variety' in locals() and variety else None),
+                    image_path=image_path,
+                )
             st.success(f"Element created (id={pid}).")
+            # Switch to Manage view after creation
+            st.session_state["elements_view"] = "Manage"
+            st.rerun()
         except Exception as e:
             st.error(str(e))
 
@@ -238,6 +241,38 @@ def _render_element_card(el: dict) -> None:
 
 def page_elements():
     st.markdown("## 🌱 Elements")
+    view = st.session_state.get("elements_view")
+
+    # Quick-switch views when redirected
+    if view == "Manage":
+        items = list_elements()
+        top_cols = st.columns([1, 1, 6])
+        with top_cols[0]:
+            if st.button("➕ Add new", key="el_to_create"):
+                st.session_state["elements_view"] = "Create"
+                st.rerun()
+        with top_cols[1]:
+            if st.button("Tabs view", key="el_tabs_reset"):
+                st.session_state.pop("elements_view", None)
+                st.rerun()
+
+        if not items:
+            st.info("No elements yet. Add your first element.")
+        else:
+            for el in items:
+                _render_element_card(el)
+        return
+
+    if view == "Create":
+        back_cols = st.columns([1, 7])
+        with back_cols[0]:
+            if st.button("⬅ Back to list", key="el_to_manage"):
+                st.session_state["elements_view"] = "Manage"
+                st.rerun()
+        _new_element_form()
+        return
+
+    # Default: tabs UI
     tabs = st.tabs(["Create", "Manage"])
     with tabs[0]:
         _new_element_form()

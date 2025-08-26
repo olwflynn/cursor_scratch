@@ -35,9 +35,35 @@ def delete_media(paths: List[str]) -> None:
             pass
 
 
-def generate_sample_image(caption: Optional[str] = None, width: int = 800, height: int = 500) -> Image.Image:
-    """Generate a simple sample image with a green gradient and optional caption."""
-    # Background gradient
+def generate_sample_image(caption: Optional[str] = None, width: int = 1024, height: int = 1024) -> Image.Image:
+    """Generate a sample image using OpenAI API if caption is provided, else fallback to local generation."""
+    print("This is the caption:", caption)
+    if caption:
+        try:
+            import openai
+            # You may need to set your OpenAI API key elsewhere in your app
+            response = openai.images.generate(
+                model="dall-e-3",
+                prompt=caption,
+                n=1,
+                size=f"{width}x{height}" if width and height else "1024x1024"
+            )
+            image_url = response.data[0].url
+            # Download the image
+            import requests
+            from io import BytesIO
+            img_data = requests.get(image_url).content
+            img = Image.open(BytesIO(img_data)).convert("RGB")
+            # Resize to requested size if needed
+            if img.size != (width, height):
+                img = img.resize((width, height))
+            return img
+        except Exception as e:
+            print("Error generating sample image:", e)
+            # If OpenAI or download fails, fallback to local generation
+            pass
+
+    # Fallback: local sample image with green gradient and optional caption
     img = Image.new("RGB", (width, height))
     draw = ImageDraw.Draw(img)
     for y in range(height):

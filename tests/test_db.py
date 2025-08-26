@@ -53,3 +53,16 @@ def test_notes_blooms_stats(tmp_path):
     assert stats["by_type"]["flower"] >= 1
     assert stats["currently_blooming"] >= 1
 
+
+def test_advice_crud(tmp_path):
+    _use_temp_db(tmp_path)
+    advice_id = dbmod.insert_advice(
+        question_text="What is the best way to prune roses?",
+        image_paths=["/tmp/rose.png"],
+        answer_text="Prune roses in the winter",
+        embedding=[0.1, 0.2, 0.3],
+    )
+    print(advice_id)
+    print(got)
+    got = dbmod.get_advice_by_id(advice_id)
+    assert got and got["question_text"] == "What is the best way to prune roses?"

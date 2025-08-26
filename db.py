@@ -1,7 +1,6 @@
 import json
 import os
 import sqlite3
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, List, Optional, Sequence, Tuple, Dict, Any
 
@@ -10,14 +9,7 @@ DATABASE_DIR = os.path.join(os.path.dirname(__file__), "data")
 DATABASE_PATH = os.path.join(DATABASE_DIR, "garden.db")
 
 
-@dataclass
-class AdviceRecord:
-    id: int
-    question_text: str
-    image_paths: List[str]
-    answer_text: str
-    embedding: List[float]
-    created_at: str
+# Note: Advice records are returned as dicts for consistency with other helpers.
 
 
 def _ensure_db_dir() -> None:
@@ -126,18 +118,18 @@ def insert_advice(
         conn.close()
 
 
-def _row_to_record(row: sqlite3.Row) -> AdviceRecord:
-    return AdviceRecord(
-        id=int(row["id"]),
-        question_text=row["question_text"],
-        image_paths=json.loads(row["image_paths"]) if row["image_paths"] else [],
-        answer_text=row["answer_text"],
-        embedding=json.loads(row["embedding"]) if row["embedding"] else [],
-        created_at=row["created_at"],
-    )
+def _row_to_record(row: sqlite3.Row) -> dict:
+    return {
+        "id": int(row["id"]),
+        "question_text": row["question_text"],
+        "image_paths": json.loads(row["image_paths"]) if row["image_paths"] else [],
+        "answer_text": row["answer_text"],
+        "embedding": json.loads(row["embedding"]) if row["embedding"] else [],
+        "created_at": row["created_at"],
+    }
 
 
-def fetch_recent(limit: int = 20) -> List[AdviceRecord]:
+def fetch_recent(limit: int = 20) -> List[dict]:
     conn = get_connection()
     try:
         cur = conn.execute(
@@ -149,7 +141,7 @@ def fetch_recent(limit: int = 20) -> List[AdviceRecord]:
         conn.close()
 
 
-def get_advice_by_id(advice_id: int) -> Optional[AdviceRecord]:
+def get_advice_by_id(advice_id: int) -> Optional[dict]:
     conn = get_connection()
     try:
         cur = conn.execute("SELECT * FROM advice WHERE id = ?", (advice_id,))
@@ -234,7 +226,7 @@ def delete_garden(garden_id: int) -> None:
         conn.close()
 
 
-def search_text(query: str, limit: int = 20) -> List[AdviceRecord]:
+def search_text(query: str, limit: int = 20) -> List[dict]:
     pattern = f"%{query.strip()}%"
     conn = get_connection()
     try:
@@ -266,7 +258,7 @@ def load_all_embeddings() -> List[Tuple[int, List[float]]]:
         conn.close()
 
 
-def get_advice_by_ids(advice_ids: Iterable[int]) -> List[AdviceRecord]:
+def get_advice_by_ids(advice_ids: Iterable[int]) -> List[dict]:
     ids = list(advice_ids)
     if not ids:
         return []
