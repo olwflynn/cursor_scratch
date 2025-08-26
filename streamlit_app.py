@@ -1,14 +1,29 @@
 import os
-from typing import List, Any
+from typing import List, Any, Optional
 
 import streamlit as st
 from PIL import Image
 
 from ai import generate_advice
-from db import init_db, insert_advice, fetch_recent, search_text, get_advice_by_ids
+from db import (
+    init_db,
+    insert_advice,
+    fetch_recent,
+    search_text,
+    get_advice_by_ids,
+    create_element,
+    update_element,
+    delete_element,
+    list_elements,
+    add_note,
+    list_notes,
+    add_bloom,
+    list_blooms,
+    compute_progress_stats,
+)
 from embeddings import compute_text_embedding
 from semantic import semantic_search
-from storage import save_uploaded_images
+from storage import save_uploaded_images, save_sample_image
 from garden_designer import garden_designer, init_garden_session
 
 
@@ -86,6 +101,140 @@ def page_ask():
             st.image(saved_paths, width=220)
 
 
+def _new_element_form() -> None:
+    st.markdown("### Add New Element")
+    with st.form("create_element_form", clear_on_submit=True):
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            name = st.text_input("Name", placeholder="e.g., Rose Bush", max_chars=100)
+            element_type = st.selectbox(
+                "Type",
+                options=["flower", "shrub", "tree", "bed", "planter"],
+            )
+            location = st.text_input("Location (optional)", placeholder="North bed")
+            planted_on = st.date_input("Planted on (optional)", value=None)
+        with col2:
+            variety = st.text_input("Variety (optional)")
+            up = st.file_uploader("Image (optional)", type=["png", "jpg", "jpeg"], accept_multiple_files=False)
+            want_sample = st.checkbox("Generate a sample image if none uploaded")
+        submitted = st.form_submit_button("Create Element", type="primary")
+
+    if submitted:
+        if not name.strip():
+            st.warning("Name is required.")
+            return
+        image_path: Optional[str] = None
+        try:
+            if up is not None:
+                imgs = _load_pil_images([up])
+                paths = save_uploaded_images(imgs)
+                image_path = paths[0] if paths else None
+            elif want_sample:
+                image_path = save_sample_image(caption=name.strip())
+
+            pid = create_element(
+                name=name.strip(),
+                type=element_type,
+                location=location.strip() or None,
+                planted_on=str(planted_on) if planted_on else None,
+                variety=variety.strip() or None,
+                image_path=image_path,
+            )
+            st.success(f"Element created (id={pid}).")
+        except Exception as e:
+            st.error(str(e))
+
+
+def _render_element_card(el: dict) -> None:
+    with st.container(border=True):
+        header = f"{el['name']} ({el['type']})"
+        st.markdown(f"**{header}**")
+        meta = []
+        if el.get("location"): meta.append(f"📍 {el['location']}")
+        if el.get("planted_on"): meta.append(f"🌱 {el['planted_on']}")
+        if el.get("variety"): meta.append(f"🧬 {el['variety']}")
+        if meta:
+            st.caption(" · ".join(meta))
+        if el.get("image_path") and os.path.exists(el["image_path"]):
+            st.image(el["image_path"], width=220)
+
+        # Notes
+        with st.expander("Notes", expanded=False):
+            note_key = f"note_input_{el['id']}"
+            new_note = st.text_input("Add note", key=note_key)
+            cols = st.columns([1, 5])
+            if cols[0].button("Add", key=f"add_note_{el['id']}"):
+                if new_note.strip():
+                    try:
+                        add_note(el["id"], new_note.strip())
+                        st.success("Note added.")
+                    except Exception as e:
+                        st.error(str(e))
+                else:
+                    st.warning("Enter a note.")
+            notes = list_notes(el["id"]) or []
+            for n in notes:
+                st.caption(n["created_at"]) 
+                st.write(n["note_text"])        
+
+        # Bloom tracker
+        with st.expander("Bloom tracker", expanded=False):
+            bcol1, bcol2, bcol3 = st.columns([1, 1, 2])
+            start = bcol1.date_input("Start date", value=None, key=f"bstart_{el['id']}")
+            end = bcol2.date_input("End date (optional)", value=None, key=f"bend_{el['id']}")
+            if bcol3.button("Add bloom", key=f"add_bloom_{el['id']}"):
+                if start:
+                    try:
+                        add_bloom(el["id"], str(start), str(end) if end else None)
+                        st.success("Bloom added.")
+                    except Exception as e:
+                        st.error(str(e))
+                else:
+                    st.warning("Start date required.")
+            blooms = list_blooms(el["id"]) or []
+            for b in blooms:
+                label = f"{b['start_date']} → {b['end_date'] or 'present'}"
+                st.write(label)
+
+
+def page_elements():
+    st.markdown("## 🌱 Elements")
+    tabs = st.tabs(["Create", "Manage"])
+    with tabs[0]:
+        _new_element_form()
+    with tabs[1]:
+        items = list_elements()
+        if not items:
+            st.info("No elements yet. Add your first element.")
+        else:
+            for el in items:
+                _render_element_card(el)
+
+
+def page_dashboard():
+    st.markdown("## 📊 Garden Dashboard")
+    try:
+        stats = compute_progress_stats()
+    except Exception as e:
+        st.error(str(e))
+        return
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total elements", stats.get("total_elements", 0))
+    c2.metric("Currently blooming", stats.get("currently_blooming", 0))
+    c3.metric("Notes (7 days)", stats.get("notes_last_7_days", 0))
+
+    st.divider()
+    st.markdown("### Elements by type")
+    by_type = stats.get("by_type", {})
+    if by_type:
+        # Build a simple chart-friendly structure
+        import pandas as pd
+        df = pd.DataFrame({"type": list(by_type.keys()), "count": list(by_type.values())})
+        st.bar_chart(df.set_index("type"))
+    else:
+        st.info("No data yet.")
+
+
 def _render_advice_card(advice):
     with st.container(border=True):
         st.caption(advice.created_at)
@@ -153,13 +302,17 @@ def main():
     st.caption(APP_TAGLINE)
     st.divider()
 
-    page = st.tabs(["Ask", "History", "Design"])
+    page = st.tabs(["Ask", "History", "Design", "Elements", "Dashboard"])
     with page[0]:
         page_ask()
     with page[1]:
         page_history()
     with page[2]:
         garden_designer()
+    with page[3]:
+        page_elements()
+    with page[4]:
+        page_dashboard()
     st.set_page_config(page_title=APP_TITLE, page_icon="🌿", layout="wide")
 
 
