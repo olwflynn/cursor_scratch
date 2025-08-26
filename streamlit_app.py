@@ -42,21 +42,6 @@ def _load_pil_images(uploaded_files: List[Any]) -> List[Image.Image]:
     return images
 
 
-def sidebar():
-    st.sidebar.markdown(
-        f"## {APP_TITLE}\n"
-        f"{APP_TAGLINE}\n\n"
-        "- Ask questions about plants, lawn, pests, soil and more.\n"
-        "- Upload photos to get visual diagnosis.\n"
-        "- Your advice is saved and searchable."
-    )
-    st.sidebar.divider()
-    st.sidebar.markdown("**Settings**")
-    st.sidebar.caption(
-        "Set OPENAI_API_KEY in your environment before running: export OPENAI_API_KEY=..."
-    )
-
-
 def page_ask():
     st.markdown("### Ask for Garden Advice")
     question = st.text_area("What would you like help with?", placeholder="e.g., Is this plant healthy? How to improve my lawn?")
@@ -64,9 +49,9 @@ def page_ask():
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        run = st.button("Get Advice", type="primary")
+        run = st.button("Get Advice", type="primary", use_container_width=True)
     with col2:
-        clear = st.button("Clear")
+        clear = st.button("Clear", use_container_width=True)
 
     if clear:
         st.session_state.pop("last_answer", None)
@@ -174,8 +159,8 @@ def _render_element_card(el: dict) -> None:
                     st.warning("Enter a note.")
             notes = list_notes(el["id"]) or []
             for n in notes:
-                st.caption(n["created_at"]) 
-                st.write(n["note_text"])        
+                st.caption(n["created_at"])
+                st.write(n["note_text"])
 
         # Bloom tracker
         with st.expander("Bloom tracker", expanded=False):
@@ -285,35 +270,51 @@ def page_history():
                 st.error(str(e))
 
 
-def main():
-    st.set_page_config(page_title=APP_TITLE, page_icon="🌿", layout="wide")
-    init_db()
-    init_garden_session()
-    sidebar()
-
-    # Add garden image at the top of the page
-    st.image(
-        "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
-        caption="A beautiful garden",
-        use_container_width=True,
-    )
-
+def _nav_buttons():
+    if "current_page" not in st.session_state:
+        st.session_state["current_page"] = "Ask"
     st.markdown("## 🌿 Garden Guide")
     st.caption(APP_TAGLINE)
     st.divider()
 
-    page = st.tabs(["Ask", "History", "Design", "Elements", "Dashboard"])
-    with page[0]:
-        page_ask()
-    with page[1]:
-        page_history()
-    with page[2]:
-        garden_designer()
-    with page[3]:
-        page_elements()
-    with page[4]:
-        page_dashboard()
+    b1, b2, b3, b4, b5 = st.columns(5)
+    with b1:
+        if st.button("Ask", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Ask" else "secondary")):
+            st.session_state["current_page"] = "Ask"
+    with b2:
+        if st.button("History", use_container_width=True, type=("primary" if st.session_state["current_page"] == "History" else "secondary")):
+            st.session_state["current_page"] = "History"
+    with b3:
+        if st.button("Design", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Design" else "secondary")):
+            st.session_state["current_page"] = "Design"
+    with b4:
+        if st.button("Elements", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Elements" else "secondary")):
+            st.session_state["current_page"] = "Elements"
+    with b5:
+        if st.button("Dashboard", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Dashboard" else "secondary")):
+            st.session_state["current_page"] = "Dashboard"
+    st.divider()
+
+
+def main():
     st.set_page_config(page_title=APP_TITLE, page_icon="🌿", layout="wide")
+    init_db()
+    init_garden_session()
+
+    # Simplified navigation (no sidebar, no hero image)
+    _nav_buttons()
+
+    page = st.session_state.get("current_page", "Ask")
+    if page == "Ask":
+        page_ask()
+    elif page == "History":
+        page_history()
+    elif page == "Design":
+        garden_designer()
+    elif page == "Elements":
+        page_elements()
+    elif page == "Dashboard":
+        page_dashboard()
 
 
 if __name__ == "__main__":
