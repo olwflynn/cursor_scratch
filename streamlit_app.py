@@ -42,7 +42,7 @@ def _load_pil_images(uploaded_files: List[Any]) -> List[Image.Image]:
     return images
 
 
-def page_ask():
+def page_ask_search():
     st.markdown("### Ask for Garden Advice")
     question = st.text_area("What would you like help with?", placeholder="e.g., Is this plant healthy? How to improve my lawn?")
     uploaded = st.file_uploader("Upload garden photos (optional)", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
@@ -85,23 +85,45 @@ def page_ask():
             st.markdown("#### Uploaded Photos")
             st.image(saved_paths, width=220)
 
+    st.divider()
+    st.markdown("### Search")
+    # semantic-only search
+    q2 = st.text_input("Search", placeholder="yellowing leaves cause and fix")
+    if st.button("Search", key="semantic_search_btn"):
+        try:
+            scored = semantic_search(q2, top_k=25)
+            ids = [i for i, _ in scored]
+            if not ids:
+                st.info("No results.")
+            else:
+                results = get_advice_by_ids(ids)
+                id_to_obj = {a.id: a for a in results}
+                for i, score in scored:
+                    a = id_to_obj.get(i)
+                    if a:
+                        st.caption(f"Similarity: {score:.3f}")
+                        _render_advice_card(a)
+        except Exception as e:
+            st.error(str(e))
+
+
 
 def _new_element_form() -> None:
     st.markdown("### Add New Element")
     with st.form("create_element_form", clear_on_submit=True):
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            name = st.text_input("Name", placeholder="e.g., Rose Bush", max_chars=100)
-            element_type = st.selectbox(
-                "Type",
-                options=["flower", "shrub", "tree", "bed", "planter"],
-            )
-            location = st.text_input("Location (optional)", placeholder="North bed")
-            planted_on = st.date_input("Planted on (optional)", value=None)
-        with col2:
-            variety = st.text_input("Variety (optional)")
-            up = st.file_uploader("Image (optional)", type=["png", "jpg", "jpeg"], accept_multiple_files=False)
-            want_sample = st.checkbox("Generate a sample image if none uploaded")
+        name = st.text_input("Name", placeholder="e.g., Rose Bush", max_chars=100)
+        element_type = st.selectbox(
+            "Type",
+            options=["flower", "shrub", "tree", "bed", "planter"],
+        )
+        with st.expander("More details (optional)"):
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                location = st.text_input("Location", placeholder="North bed")
+                planted_on = st.date_input("Planted on", value=None)
+            with col2:
+                variety = st.text_input("Variety")
+                up = st.file_uploader("Image (optional)", type=["png", "jpg", "jpeg"], accept_multiple_files=False)
         submitted = st.form_submit_button("Create Element", type="primary")
 
     if submitted:
@@ -114,15 +136,16 @@ def _new_element_form() -> None:
                 imgs = _load_pil_images([up])
                 paths = save_uploaded_images(imgs)
                 image_path = paths[0] if paths else None
-            elif want_sample:
+            else:
+                # Always generate a sample image when none uploaded
                 image_path = save_sample_image(caption=name.strip())
 
             pid = create_element(
                 name=name.strip(),
                 type=element_type,
-                location=location.strip() or None,
-                planted_on=str(planted_on) if planted_on else None,
-                variety=variety.strip() or None,
+                location=(location.strip() if 'location' in locals() and location else None),
+                planted_on=(str(planted_on) if 'planted_on' in locals() and planted_on else None),
+                variety=(variety.strip() if 'variety' in locals() and variety else None),
                 image_path=image_path,
             )
             st.success(f"Element created (id={pid}).")
@@ -229,70 +252,30 @@ def _render_advice_card(advice):
             st.image(advice.image_paths, width=160)
 
 
-def page_history():
-    st.markdown("### History & Search")
-    tabs = st.tabs(["Recent", "Search", "Semantic Search"])
-
-    with tabs[0]:
-        recents = fetch_recent(limit=25)
-        if not recents:
-            st.info("No advice saved yet.")
-        for a in recents:
-            _render_advice_card(a)
-
-    with tabs[1]:
-        q = st.text_input("Search text", placeholder="tomato, powdery mildew, lawn, compost...")
-        if st.button("Search", key="text_search"):
-            results = search_text(q, limit=50)
-            if not results:
-                st.info("No results.")
-            for a in results:
-                _render_advice_card(a)
-
-    with tabs[2]:
-        q2 = st.text_input("Semantic search", placeholder="yellowing leaves cause and fix")
-        if st.button("Search", key="semantic_search"):
-            try:
-                scored = semantic_search(q2, top_k=25)
-                ids = [i for i, _ in scored]
-                if not ids:
-                    st.info("No results.")
-                else:
-                    results = get_advice_by_ids(ids)
-                    # Keep original order by score
-                    id_to_obj = {a.id: a for a in results}
-                    for i, score in scored:
-                        a = id_to_obj.get(i)
-                        if a:
-                            st.caption(f"Similarity: {score:.3f}")
-                            _render_advice_card(a)
-            except Exception as e:
-                st.error(str(e))
-
-
 def _nav_buttons():
     if "current_page" not in st.session_state:
-        st.session_state["current_page"] = "Ask"
+        st.session_state["current_page"] = "Ask & Search"
     st.markdown("## 🌿 Garden Guide")
     st.caption(APP_TAGLINE)
     st.divider()
 
-    b1, b2, b3, b4, b5 = st.columns(5)
+    b1, b2, b3, b4 = st.columns(4)
     with b1:
-        if st.button("Ask", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Ask" else "secondary")):
-            st.session_state["current_page"] = "Ask"
+        if st.button("Ask & Search", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Ask & Search" else "secondary")):
+            st.session_state["current_page"] = "Ask & Search"
+            st.rerun()
     with b2:
-        if st.button("History", use_container_width=True, type=("primary" if st.session_state["current_page"] == "History" else "secondary")):
-            st.session_state["current_page"] = "History"
-    with b3:
         if st.button("Design", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Design" else "secondary")):
             st.session_state["current_page"] = "Design"
-    with b4:
+            st.rerun()
+    with b3:
         if st.button("Elements", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Elements" else "secondary")):
             st.session_state["current_page"] = "Elements"
-    with b5:
+            st.rerun()
+    with b4:
         if st.button("Dashboard", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Dashboard" else "secondary")):
             st.session_state["current_page"] = "Dashboard"
+            st.rerun()
     st.divider()
 
 
@@ -301,14 +284,11 @@ def main():
     init_db()
     init_garden_session()
 
-    # Simplified navigation (no sidebar, no hero image)
     _nav_buttons()
 
-    page = st.session_state.get("current_page", "Ask")
-    if page == "Ask":
-        page_ask()
-    elif page == "History":
-        page_history()
+    page = st.session_state.get("current_page", "Ask & Search")
+    if page == "Ask & Search":
+        page_ask_search()
     elif page == "Design":
         garden_designer()
     elif page == "Elements":
