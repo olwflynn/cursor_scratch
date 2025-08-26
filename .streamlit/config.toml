@@ -1,4 +1,13 @@
 [theme]
+primaryColor = "#2e7d32"       # deep garden green
+backgroundColor = "#f4f8f4"    # soft light green/gray
+secondaryBackgroundColor = "#e6f2e6"  # pale green panel
+textColor = "#1b5e20"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+[theme]
 base = "light"
 primaryColor = "#2fad60"
 backgroundColor = "#f5fff7"
