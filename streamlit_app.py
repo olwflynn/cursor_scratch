@@ -31,6 +31,36 @@ APP_TITLE = "Garden Guide"
 APP_TAGLINE = "Get friendly AI tips to grow a thriving garden"
 
 
+# Lightweight CSS for a clean, card-based dashboard look
+DASHBOARD_CSS = """
+<style>
+:root {
+  --accent: #7C4DFF; /* vibrant purple accent */
+  --card-bg: #ffffff;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+}
+.section-title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  margin: 0.25rem 0 0.5rem 0;
+}
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 1px 1px rgba(16,24,40,0.06);
+}
+.kpi { display: flex; flex-direction: column; gap: 6px; }
+.kpi .label { color: var(--muted); font-size: 0.85rem; }
+.kpi .value { font-weight: 800; font-size: 1.8rem; line-height: 1.2; }
+.divider { height: 1px; background: var(--border); margin: 12px 0 8px 0; }
+.accent { color: var(--accent); }
+</style>
+"""
+
+
 def _load_pil_images(uploaded_files: List[Any]) -> List[Image.Image]:
     images: List[Image.Image] = []
     for uf in uploaded_files:
@@ -87,6 +117,7 @@ def page_ask_search():
 
     st.divider()
     st.markdown("### Search")
+    st.markdown("#### Find previous advice for your garden")
     # semantic-only search
     q2 = st.text_input("Search", placeholder="yellowing leaves cause and fix")
     if st.button("Search", key="semantic_search_btn"):
@@ -220,25 +251,46 @@ def page_elements():
 
 
 def page_dashboard():
-    st.markdown("## 📊 Garden Dashboard")
+    st.markdown(DASHBOARD_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 Garden Dashboard</div>', unsafe_allow_html=True)
     try:
         stats = compute_progress_stats()
     except Exception as e:
         st.error(str(e))
         return
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total elements", stats.get("total_elements", 0))
-    c2.metric("Currently blooming", stats.get("currently_blooming", 0))
-    c3.metric("Notes (7 days)", stats.get("notes_last_7_days", 0))
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        with st.container():
+            st.markdown('<div class="card kpi"><div class="label">Total elements</div>'
+                        f'<div class="value">{stats.get("total_elements", 0)}</div></div>', unsafe_allow_html=True)
+    with k2:
+        with st.container():
+            st.markdown('<div class="card kpi"><div class="label">Currently blooming</div>'
+                        f'<div class="value accent">{stats.get("currently_blooming", 0)}</div></div>', unsafe_allow_html=True)
+    with k3:
+        with st.container():
+            st.markdown('<div class="card kpi"><div class="label">Notes (7 days)</div>'
+                        f'<div class="value">{stats.get("notes_last_7_days", 0)}</div></div>', unsafe_allow_html=True)
 
-    st.divider()
-    st.markdown("### Elements by type")
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Elements by type</div>', unsafe_allow_html=True)
+
     by_type = stats.get("by_type", {})
     if by_type:
-        # Build a simple chart-friendly structure
-        import pandas as pd
+        import pandas as pd, altair as alt
         df = pd.DataFrame({"type": list(by_type.keys()), "count": list(by_type.values())})
-        st.bar_chart(df.set_index("type"))
+        chart = (
+            alt.Chart(df)
+            .mark_bar(size=36, cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
+            .encode(
+                x=alt.X("type:N", title=None, axis=alt.Axis(labelAngle=0)),
+                y=alt.Y("count:Q", title=None),
+                color=alt.value("#7C4DFF"),
+                tooltip=[alt.Tooltip("type:N", title="Type"), alt.Tooltip("count:Q", title="Count")],
+            )
+            .properties(height=220)
+        )
+        st.altair_chart(chart, use_container_width=True)
     else:
         st.info("No data yet.")
 
@@ -254,15 +306,15 @@ def _render_advice_card(advice):
 
 def _nav_buttons():
     if "current_page" not in st.session_state:
-        st.session_state["current_page"] = "Ask & Search"
+        st.session_state["current_page"] = "Get Advice"
     st.markdown("## 🌿 Garden Guide")
     st.caption(APP_TAGLINE)
     st.divider()
 
     b1, b2, b3, b4 = st.columns(4)
     with b1:
-        if st.button("Ask & Search", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Ask & Search" else "secondary")):
-            st.session_state["current_page"] = "Ask & Search"
+        if st.button("Get Advice", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Get Advice" else "secondary")):
+            st.session_state["current_page"] = "Get Advice"
             st.rerun()
     with b2:
         if st.button("Design", use_container_width=True, type=("primary" if st.session_state["current_page"] == "Design" else "secondary")):
@@ -286,8 +338,8 @@ def main():
 
     _nav_buttons()
 
-    page = st.session_state.get("current_page", "Ask & Search")
-    if page == "Ask & Search":
+    page = st.session_state.get("current_page", "Get Advice")
+    if page == "Get Advice":
         page_ask_search()
     elif page == "Design":
         garden_designer()
